@@ -265,26 +265,32 @@ func (v *ReplVisitor) VisitValDeclVec(ctx *compiler.ValDeclVecContext) interface
 	// Obtener el tipo del vector (ej: "[]int")
 	varType := v.Visit(ctx.Type_()).(string)
 
-	// Validar que sea un tipo de vector válido
-	if !IsVectorType(varType) {
-		v.ErrorTable.NewSemanticError(ctx.GetStart(), "El tipo '"+varType+"' no es un tipo de vector válido")
+	var defaultValue value.IVOR
+
+	// Verificar si es un tipo de vector válido
+	if IsVectorType(varType) {
+		// Extraer el tipo de los elementos del vector (ej: "int" de "[]int")
+		itemType := RemoveBrackets(varType)
+
+		// Validar que el tipo del elemento sea válido
+		if !v.ValidType(itemType) {
+			v.ErrorTable.NewSemanticError(ctx.GetStart(), "El tipo de elemento '"+itemType+"' no es válido para un vector")
+			return nil
+		}
+
+		// Crear un vector vacío del tipo especificado
+		defaultValue = NewVectorValue([]value.IVOR{}, varType, itemType)
+	} else if v.ValidType(varType) {
+		// Si no es un vector pero es un tipo primitivo válido, usar DefaultValue
+		defaultValue = value.DefaultValue(varType, nil)
+	} else {
+		// Tipo completamente inválido
+		v.ErrorTable.NewSemanticError(ctx.GetStart(), "El tipo '"+varType+"' no es válido")
 		return nil
 	}
-
-	// Extraer el tipo de los elementos del vector (ej: "int" de "[]int")
-	itemType := RemoveBrackets(varType)
-
-	// Validar que el tipo del elemento sea válido
-	if !v.ValidType(itemType) {
-		v.ErrorTable.NewSemanticError(ctx.GetStart(), "El tipo de elemento '"+itemType+"' no es válido para un vector")
-		return nil
-	}
-
-	// Crear un vector vacío del tipo especificado
-	emptyVector := NewVectorValue([]value.IVOR{}, varType, itemType)
 
 	// Agregar la variable al scope actual
-	variable, msg := v.ScopeTrace.AddVariable(varName, varType, emptyVector, isConst, false, ctx.GetStart())
+	variable, msg := v.ScopeTrace.AddVariable(varName, varType, defaultValue, isConst, false, ctx.GetStart())
 
 	// Si la variable ya existe o hay otro error, reportarlo
 	if variable == nil {
@@ -292,7 +298,11 @@ func (v *ReplVisitor) VisitValDeclVec(ctx *compiler.ValDeclVecContext) interface
 		return nil
 	}
 
-	fmt.Printf("✅ Vector '%s' de tipo '%s' declarado exitosamente\n", varName, varType)
+	if IsVectorType(varType) {
+		fmt.Printf("✅ Vector '%s' de tipo '%s' declarado exitosamente\n", varName, varType)
+	} else {
+		fmt.Printf("✅ Variable '%s' de tipo '%s' declarada exitosamente con valor por defecto\n", varName, varType)
+	}
 	return nil
 }
 

@@ -29,11 +29,22 @@ func NewARM64Generator() *ARM64Generator {
 	}
 }
 
-// Método para agregar strings a la sección .data
+// formatStringForAssembly escapa caracteres especiales para el ensamblador
+func (g *ARM64Generator) formatStringForAssembly(text string) string {
+	// Escapar caracteres especiales para .asciz
+	text = strings.ReplaceAll(text, "\\", "\\\\") // Escapar \ primero
+	text = strings.ReplaceAll(text, "\"", "\\\"") // Escapar comillas
+	text = strings.ReplaceAll(text, "\n", "\\n")  // Escapar saltos de línea
+	text = strings.ReplaceAll(text, "\t", "\\t")  // Escapar tabs
+	text = strings.ReplaceAll(text, "\r", "\\r")  // Escapar retorno de carro
+
+	return fmt.Sprintf("\"%s\"", text)
+}
+
+// AddStringLiteral CORREGIDO
 func (g *ARM64Generator) AddStringLiteral(text string) string {
-	// NUEVO: Verificar si el string ya existe
+	// Verificar si el string ya existe
 	if existingLabel, exists := g.stringMap[text]; exists {
-		fmt.Printf("🔄 String \"%s\" ya existe como %s, reutilizando\n", text, existingLabel)
 		return existingLabel
 	}
 
@@ -44,11 +55,10 @@ func (g *ARM64Generator) AddStringLiteral(text string) string {
 	// Agregar al mapa para evitar duplicados futuros
 	g.stringMap[text] = stringLabel
 
-	// Agregar definición del string a la lista
-	stringDef := fmt.Sprintf("%s: .asciz \"%s\"", stringLabel, text)
+	// Usar formato seguro para strings
+	stringDef := fmt.Sprintf("%s: .asciz %s", stringLabel, g.formatStringForAssembly(text))
 	g.stringData = append(g.stringData, stringDef)
 
-	fmt.Printf("✅ Nuevo string \"%s\" creado como %s\n", text, stringLabel)
 	return stringLabel
 }
 
@@ -64,7 +74,7 @@ func (g *ARM64Generator) EmitRaw(instruction string) {
 	g.instructions = append(g.instructions, instruction)
 }
 
-// Comment añade un comentario explicativo
+// Comment añade un comentario explicativo CORREGIDO
 func (g *ARM64Generator) Comment(comment string) {
 	g.instructions = append(g.instructions, "    // "+comment)
 }
@@ -114,18 +124,18 @@ func (g *ARM64Generator) LoadImmediate(register string, value int) {
 	g.Emit(fmt.Sprintf("mov %s, #%d", register, value))
 }
 
-// LoadVariable carga una variable del stack a un registro
-func (g *ARM64Generator) LoadVariable(register, varName string) {
-	offset := g.GetVariableOffset(varName)
-	g.Comment(fmt.Sprintf("Cargar variable '%s' en %s", varName, register))
-	g.Emit(fmt.Sprintf("ldr %s, [sp, #%d]", register, offset))
-}
-
 // StoreVariable guarda un registro en una variable del stack
 func (g *ARM64Generator) StoreVariable(register, varName string) {
 	offset := g.GetVariableOffset(varName)
 	g.Comment(fmt.Sprintf("Guardar %s en variable '%s'", register, varName))
-	g.Emit(fmt.Sprintf("str %s, [sp, #%d]", register, offset))
+	// CAMBIAR ESTA LÍNEA:
+	g.Emit(fmt.Sprintf("str %s, [sp, #%d]", register, offset)) // ← AGREGAR ESPACIOS
+}
+
+func (g *ARM64Generator) LoadVariable(register, varName string) {
+	offset := g.GetVariableOffset(varName)
+	g.Comment(fmt.Sprintf("Cargar variable '%s' en %s", varName, register))
+	g.Emit(fmt.Sprintf("ldr %s, [sp, #%d]", register, offset)) // ✅ AGREGAR ESPACIOS
 }
 
 // === OPERACIONES ARITMÉTICAS ===
@@ -156,7 +166,7 @@ func (g *ARM64Generator) Div(result, reg1, reg2 string) {
 
 // Mod módulo de dos registros: result = reg1 % reg2
 func (g *ARM64Generator) Mod(result, reg1, reg2 string) {
-	g.Comment(fmt.Sprintf("Módulo: %s = %s %% %s", result, reg1, reg2))
+	g.Comment(fmt.Sprintf("Modulo: %s = %s %% %s", result, reg1, reg2))
 	g.Emit(fmt.Sprintf("sdiv x3, %s, %s", reg1, reg2))             // División entera
 	g.Emit(fmt.Sprintf("msub %s, x3, %s, %s", result, reg2, reg1)) // x1 - x3*x2
 }
@@ -213,17 +223,22 @@ func (g *ARM64Generator) CallFunction(funcName string) {
 
 // === GENERACIÓN DE PROGRAMA COMPLETO ===
 
-// GenerateHeader genera el header del programa ARM64
+// GenerateHeader genera el header del programa ARM64 - CORREGIR ESTA FUNCIÓN
 func (g *ARM64Generator) GenerateHeader() {
-	g.EmitRaw(".data")
+	// PROBLEMA: Falta .section antes de .data
+	g.EmitRaw(".section .data") // ← AGREGAR ESTO
+	g.EmitRaw(".align 4")       // ← AGREGAR ESTO
 
-	// NUEVO: Agregar todos los strings a la sección .data
+	// AGREGAR todos los strings a la sección .data
 	for _, stringDef := range g.stringData {
 		g.EmitRaw(stringDef)
 	}
 
 	g.EmitRaw("") // Línea vacía para separación
-	g.EmitRaw(".text")
+
+	// PROBLEMA: Falta .section antes de .text
+	g.EmitRaw(".section .text") // ← CAMBIAR de ".text" a ".section .text"
+	g.EmitRaw(".align 2")       // ← AGREGAR ESTO para ARM64
 	g.EmitRaw(".global _start")
 	g.EmitRaw("")
 	g.EmitRaw("_start:")
@@ -240,13 +255,14 @@ func (g *ARM64Generator) GenerateHeader() {
 func (g *ARM64Generator) GenerateFooter() {
 	g.Comment("=== FIN DEL PROGRAMA ===")
 
-	// Limpiar el stack si se reservó espacio
+	// 🔧 CORRECCIÓN: Usar el stackOffset correcto
 	if g.stackOffset > 0 {
 		g.Comment("Limpiar variables del stack")
+		// USAR EL MISMO VALOR QUE SE RESERVÓ
 		g.Emit(fmt.Sprintf("add sp, sp, #%d", g.stackOffset))
 	}
 
-	g.Comment("Terminar programa con código de salida 0")
+	g.Comment("Terminar programa con codigo de salida 0")
 	g.Emit("mov x0, #0")  // Código de salida 0
 	g.Emit("mov x8, #93") // Número de syscall para exit
 	g.Emit("svc #0")      // Llamada al sistema
@@ -267,7 +283,7 @@ func (g *ARM64Generator) Reset() {
 	g.stackOffset = 0
 	g.stringData = make([]string, 0)
 	g.stringCount = 0
-	g.stringMap = make(map[string]string) // NUEVO
+	g.stringMap = make(map[string]string)
 }
 
 // === UTILIDADES DE DEBUG ===
@@ -288,7 +304,7 @@ func (g *ARM64Generator) GetVariables() map[string]int {
 
 // AppendCharToBufferRoutine genera el código de la función append_char_to_buffer
 func (g *ARM64Generator) AppendCharToBufferRoutine() {
-	g.EmitRaw("append_char_to_buffer")
+	g.EmitRaw("append_char_to_buffer:")
 	g.Emit("stp x29, x30, [sp, #-16]!")
 	g.Emit("add x3, x0, x1") // x3 = buffer + index
 	g.Emit("strb w2, [x3]")  // buffer[index] = char

@@ -519,6 +519,7 @@ func executeARM64Assembly(arm64Code string) (string, bool, string) {
 	// Crear archivo temporal
 	tmpDir := "/tmp"
 	sourceFile := filepath.Join(tmpDir, "temp_program.s")
+	objectFile := filepath.Join(tmpDir, "temp_program.o")
 	executableFile := filepath.Join(tmpDir, "temp_program")
 
 	// Escribir código ARM64 al archivo
@@ -528,26 +529,27 @@ func executeARM64Assembly(arm64Code string) (string, bool, string) {
 	}
 	defer os.Remove(sourceFile)
 
-	// Compilar con as (GNU assembler)
-	asmCmd := exec.Command("as", "-64", sourceFile, "-o", executableFile+".o")
+	// Usar aarch64-linux-gnu-as (cross-compiler)
+	asmCmd := exec.Command("aarch64-linux-gnu-as", "-o", objectFile, sourceFile)
 	asmOutput, err := asmCmd.CombinedOutput()
 	if err != nil {
 		return "", false, fmt.Sprintf("Assembly error: %s", string(asmOutput))
 	}
-	defer os.Remove(executableFile + ".o")
+	defer os.Remove(objectFile)
 
-	// Enlazar con ld
-	ldCmd := exec.Command("ld", executableFile+".o", "-o", executableFile)
+	// Usar aarch64-linux-gnu-ld (cross-linker)
+	ldCmd := exec.Command("aarch64-linux-gnu-ld", "-o", executableFile, objectFile)
 	ldOutput, err := ldCmd.CombinedOutput()
 	if err != nil {
 		return "", false, fmt.Sprintf("Linker error: %s", string(ldOutput))
 	}
 	defer os.Remove(executableFile)
 
-	// Ejecutar
-	execCmd := exec.Command(executableFile)
+	// Ejecutar con QEMU (emulador ARM64)
+	execCmd := exec.Command("qemu-aarch64", "-L", "/usr/aarch64-linux-gnu", executableFile)
 	execOutput, err := execCmd.CombinedOutput()
 	if err != nil {
+		// Si hay error de ejecución, aún mostrar la salida (puede contener prints antes del error)
 		return string(execOutput), false, fmt.Sprintf("Execution error: %v", err)
 	}
 

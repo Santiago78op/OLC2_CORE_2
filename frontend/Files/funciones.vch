@@ -1,0 +1,29 @@
+/*
+ * ================================================
+ * Archivo: intermedi.vch
+ * Lenguaje: VLan Cherry
+ * Autor: 
+ * Fecha: 1/7/2025 9:26:49
+ * Descripción: 
+ * ================================================
+ */
+
+// Programa principal
+function main() {
+    // Declaración de variables
+    var mensaje = "Hola VLan Cherry";
+    var numero = 42;
+    var activo = true;
+    
+    // Salida por consola
+    print(mensaje);
+    print("El número es: " + numero);
+    
+    // Estructura de control
+    if (activo) {
+        print("El programa está funcionando correctamente");
+    }
+}
+
+// Punto de entrada del programa
+main();

@@ -1,0 +1,118 @@
+/*
+ * ================================================
+ * Archivo: basicas.vch
+ * Lenguaje: VLan Cherry
+ * Autor: 
+ * Fecha: 1/7/2025 9:26:21
+ * Descripción: 
+ * ================================================
+ */
+
+// Programa principal
+fn main() {
+    mut puntos int = 0
+
+    println("=== Archivo de prueba basico ===")
+    println("Validaciones manuales esperadás: 3")
+
+    // 1. Declaración de variables (3 puntos)
+    println("==== Declaración de variables ====")
+    mut puntosDeclaracion int = 0
+
+    println("Declaración explícita con tipo y valor")
+    mut entero int = 42
+    mut decimal float = 3.14
+    mut texto string = "Hola!"
+    mut booleano bool = true
+
+    println("\n\n###Validacion Manual")
+    println("entero:", entero)
+    println("decimal:", decimal)
+    println("texto:", texto)
+    println("booleano:", booleano)
+    println("")
+
+    if (entero == 42 && decimal > 3.0 && texto == "Hola!" && booleano == true) {
+        puntosDeclaracion = puntosDeclaracion + 1
+        println("OK Declaración explícita: correcto")
+    } else {
+        println("X Declaración explícita: incorrecto")
+    }
+
+    println("Declaración sin valor")
+    mut enteroSinValor int
+    mut decimalSinValor float
+    mut textoSinValor string
+    mut booleanoSinValor bool
+
+    println("enteroSinValor:", enteroSinValor)
+    println("decimalSinValor:", decimalSinValor)
+    println("textoSinValor:", textoSinValor)
+    println("booleanoSinValor:", booleanoSinValor)
+
+    if (enteroSinValor == 0 && decimalSinValor == 0.0 && textoSinValor == "" && booleanoSinValor == false) {
+        puntosDeclaracion = puntosDeclaracion + 1
+        println("OK Declaración sin valor: correcto")
+    } else {
+        println("X Declaración sin valor: incorrecto")
+    }
+
+    println("Declaración con inferencia de tipo (convertida a explícita)")
+    mut enteroInferido int = 100
+    mut decimalInferido float = 2.71
+    mut textoInferido string = "Adios!"
+    mut booleanoInferido bool = false
+
+    println("enteroInferido:", enteroInferido)
+    println("decimalInferido:", decimalInferido)
+    println("textoInferido:", textoInferido)
+    println("booleanoInferido:", booleanoInferido)
+
+    if (enteroInferido == 100 && decimalInferido > 2.7 && textoInferido == "Adios!" && booleanoInferido == false) {
+        puntosDeclaracion = puntosDeclaracion + 1
+        println("OK Declaración con inferencia: correcto")
+    } else {
+        println("X Declaración con inferencia: incorrecto")
+    }
+
+     // 2. Asignación de variables (3 puntos)
+    println("==== Asignación de variables ====")
+
+    mut puntosAsignacion int = 0
+
+    println("Asignación con tipo correcto")
+    entero = 99
+    decimal = 9.9
+    texto = "Nuevo"
+    booleano = !booleano
+
+    println("\n\n###Validacion Manual")
+    println("entero:", entero)
+    println("decimal:", decimal)
+    println("texto:", texto)
+    println("booleano:", booleano)
+    println("")
+
+    if (entero == 99 && decimal == 9.9 && texto == "Nuevo" && booleano == false) {
+        puntosAsignacion = puntosAsignacion + 1
+        println("OK Asignación simple: correcto")
+    } else {
+        println("X Asignación simple: incorrecto")
+    }
+
+    println("Asignación con expresiones")
+    entero = entero + 1
+    decimal = decimal * 2
+    texto = texto + "!"
+    booleano = !booleano
+
+    println("entero:", entero)
+    println("decimal:", decimal)
+    println("texto:", texto)
+    println("booleano:", booleano)
+
+
+}
+
+// Punto de entrada del programa
+main();
