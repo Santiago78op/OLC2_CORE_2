@@ -1,0 +1,37 @@
+{
+  "name": "vlan-cherry-ide-frontend",
+  "version": "1.0.0",
+  "description": "IDE Frontend para VLan Cherry",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "dist": "electron-builder --publish=never"
+  },
+  "keywords": [
+    "electron",
+    "ide",
+    "vlancherry",
+    "frontend"
+  ],
+  "author": "Tu Nombre",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "build": {
+    "appId": "com.example.vlancherryide",
+    "productName": "VLan Cherry IDE",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!node_modules",
+      "!src",
+      "!.gitignore"
+    ]
+  }
+}

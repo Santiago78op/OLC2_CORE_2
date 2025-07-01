@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VLan Cherry IDE</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <!-- Monaco Editor CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+</head>
+<body>
+<div class="ide-container">
+    <!-- Header -->
+    <header class="ide-header">
+        <div class="logo-section">
+            <h1>🍒 VLan Cherry IDE</h1>
+            <span class="version">v3.1.0</span>
+        </div>
+        <div class="header-controls">
+            <button id="newFileBtn" class="header-btn" title="Nuevo Archivo (Ctrl+N)">
+                📄 Nuevo
+            </button>
+            <button id="openFileBtn" class="header-btn" title="Abrir Archivo (Ctrl+O)">
+                📂 Abrir
+            </button>
+            <button id="saveFileBtn" class="header-btn" title="Guardar (Ctrl+S)">
+                💾 Guardar
+            </button>
+            <div class="separator"></div>
+            <button id="executeBtn" class="header-btn execute-btn" title="Ejecutar (F5)">
+                ▶️ Ejecutar
+            </button>
+            <div class="connection-status" id="connectionStatus">
+                🔴 Desconectado
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="ide-main">
+        <!-- Left Panel - File Explorer -->
+        <div class="left-panel">
+            <div class="panel-header">
+                <h3>📁 Explorador de Archivos</h3>
+                <button id="refreshFilesBtn" class="panel-btn">🔄</button>
+            </div>
+            <div class="files-list" id="filesList">
+                <div class="empty-files">
+                    <p>No hay archivos abiertos</p>
+                    <button id="createFirstFile" class="create-btn">📄 Crear nuevo archivo</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center Panel - Editor -->
+        <div class="center-panel">
+            <!-- Tabs -->
+            <div class="tabs-container" id="tabsContainer">
+                <div class="welcome-tab active">
+                    <span>👋 Bienvenido</span>
+                </div>
+            </div>
+
+            <!-- Editor Container -->
+            <div class="editor-container">
+                <!-- Welcome Screen -->
+                <div class="welcome-screen" id="welcomeScreen">
+                    <div class="welcome-content">
+                        <h2>🍒 Bienvenido a VLan Cherry IDE</h2>
+                        <p>Un entorno de desarrollo integrado para el lenguaje VLan Cherry</p>
+                        <div class="welcome-actions">
+                            <button class="welcome-btn" id="welcomeNewFile">📄 Crear nuevo archivo</button>
+                            <button class="welcome-btn" id="welcomeOpenFile">📂 Abrir archivo existente</button>
+                        </div>
+                        <div class="welcome-info">
+                            <h3>Características:</h3>
+                            <ul>
+                                <li>✅ Editor con resaltado de sintaxis</li>
+                                <li>✅ Análisis léxico, sintáctico y semántico</li>
+                                <li>✅ Reporte de errores en tiempo real</li>
+                                <li>✅ Tabla de símbolos</li>
+                                <li>✅ Visualización del AST</li>
+                                <li>✅ Consola integrada</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Editor Wrapper -->
+                <div class="editor-wrapper" id="editorWrapper" style="display: none;">
+                    <div class="editor-info">
+                        <span id="currentFile">Sin archivo</span>
+                        <span class="editor-stats">
+                                <span id="lineColumn">Línea 1, Columna 1</span>
+                                <span id="fileStats">0 líneas</span>
+                            </span>
+                    </div>
+                    <div id="monaco-editor"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Console Only -->
+        <div class="right-panel">
+            <div class="panel-header">
+                <h3>📟 Consola de Salida</h3>
+                <div class="panel-controls">
+                    <button id="showReportsBtn" class="panel-btn" title="Ver reportes detallados">
+                        📊 Reportes
+                    </button>
+                    <button id="clearConsoleBtn" class="panel-btn" title="Limpiar consola">
+                        🗑️ Limpiar
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Console Output Container -->
+            <div class="console-output" id="consoleOutput">
+                <!-- Estado inicial -->
+                <div class="console-empty" id="consoleEmpty">
+                    <div class="console-empty-icon">📟</div>
+                    <p>Consola de VLan Cherry IDE</p>
+                    <small>Los mensajes de ejecución aparecerán aquí</small>
+                </div>
+                
+                <!-- Mensaje inicial -->
+                <div class="console-message system">
+                    <span class="timestamp">[00:00:00]</span>
+                    <span class="message">VLan Cherry IDE iniciado correctamente</span>
+                </div>
+                <div class="console-message info">
+                    <span class="timestamp">[00:00:00]</span>
+                    <span class="message">Conectando con el backend...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports Modal -->
+    <div class="modal-overlay" id="reportsModal" style="display: none;">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h2>📊 Reportes de Análisis</h2>
+                <button class="modal-close" id="closeReportsModal">×</button>
+            </div>
+
+            <div class="modal-tabs">
+                <button class="modal-tab active" data-tab="errors">❌ Errores</button>
+                <button class="modal-tab" data-tab="symbols">🔤 Tabla de Símbolos</button>
+                <button class="modal-tab" data-tab="ast">🌳 AST</button>
+                <button class="modal-tab" data-tab="arm64">🔧 ARM64</button>
+            </div>
+
+            <div class="modal-content">
+                <!-- Errores Tab -->
+                <div class="modal-tab-content active" id="errorsTab">
+                    <div class="report-header">
+                        <h3>Reporte de Errores</h3>
+                        <div class="report-controls">
+                            <span class="report-count" id="errorsCount">0 errores</span>
+                            <button class="download-btn" id="downloadErrorsBtn">📥 Descargar CSV</button>
+                            <button class="download-btn" id="downloadErrorsExcelBtn">📊 Descargar Excel</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="report-table" id="errorsTable">
+                            <thead>
+                            <tr>
+                                <th onclick="sortTable('errorsTable', 0)">No. <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('errorsTable', 1)">Descripción <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('errorsTable', 2)">Línea <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('errorsTable', 3)">Columna <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('errorsTable', 4)">Tipo <span class="sort-icon">↕️</span></th>
+                            </tr>
+                            </thead>
+                            <tbody id="errorsTableBody">
+                            <tr class="empty-row">
+                                <td colspan="5">No hay errores que mostrar</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Símbolos Tab -->
+                <div class="modal-tab-content" id="symbolsTab">
+                    <div class="report-header">
+                        <h3>Tabla de Símbolos</h3>
+                        <div class="report-controls">
+                            <span class="report-count" id="symbolsCount">0 símbolos</span>
+                            <button class="download-btn" id="downloadSymbolsBtn">📥 Descargar CSV</button>
+                            <button class="download-btn" id="downloadSymbolsExcelBtn">📊 Descargar Excel</button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="report-table" id="symbolsTable">
+                            <thead>
+                            <tr>
+                                <th onclick="sortTable('symbolsTable', 0)">ID <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('symbolsTable', 1)">Tipo de Símbolo <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('symbolsTable', 2)">Tipo de Dato <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('symbolsTable', 3)">Ámbito <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('symbolsTable', 4)">Línea <span class="sort-icon">↕️</span></th>
+                                <th onclick="sortTable('symbolsTable', 5)">Columna <span class="sort-icon">↕️</span></th>
+                            </tr>
+                            </thead>
+                            <tbody id="symbolsTableBody">
+                            <tr class="empty-row">
+                                <td colspan="6">No hay símbolos que mostrar</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AST Tab -->
+                <div class="modal-tab-content" id="astTab">
+                    <div class="report-header">
+                        <h3>Árbol de Sintaxis Abstracta (AST)</h3>
+                        <div class="report-controls">
+                           <div class="ast-controls">
+                                <button class="control-btn" id="zoomInBtn">🔍+</button>
+                                <button class="control-btn" id="zoomOutBtn">🔍-</button>
+                                <button class="control-btn" id="resetZoomBtn">⟲</button>
+                                <button class="control-btn" id="fitASTBtn" title="Ajustar al contenedor">⤢</button>
+                                <button class="control-btn" id="expandAllBtn">📂</button>
+                                <button class="control-btn" id="collapseAllBtn">📁</button>
+                            </div>
+                             <div class="download-controls">
+                                <button class="download-btn" id="downloadASTSvgBtn">📥 SVG</button>
+                                <button class="download-btn" id="downloadASTPngBtn">🖼️ PNG</button>
+                                <button class="download-btn" id="downloadASTJsonBtn">📄 JSON</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ast-container">
+                        <div id="astVisualization" class="ast-visualization">
+                            <div class="empty-ast">
+                                <p>No hay AST que mostrar</p>
+                                <small>Ejecuta código para generar el árbol de sintaxis</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ARM64 Tab -->
+                <div class="modal-tab-content" id="arm64Tab">
+                    <div class="report-header">
+                        <h3>Código ARM64 Generado</h3>
+                        <div class="report-controls">
+                            <div class="download-controls">
+                                <button class="download-btn" id="downloadARM64Btn">📥 Descargar .s</button>
+                                <button class="arm64-execute-btn" id="executeARM64Btn">▶️ Ejecutar ARM64</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="arm64-container">
+                        <div id="arm64Visualization" class="arm64-code-wrapper">
+                            <div class="empty-arm64">
+                                <div class="empty-arm64-icon">🔧</div>
+                                <p>No hay código ARM64 generado</p>
+                                <small>Ejecuta código VLan Cherry sin errores para generar ARM64</small>
+                            </div>
+                        </div>
+                        <div class="arm64-execution-panel" id="arm64ExecutionPanel" style="display: none;">
+                            <div class="arm64-execution-header">
+                                <h4>Salida de Ejecución ARM64</h4>
+                                <button class="panel-btn" id="clearARM64OutputBtn" title="Limpiar salida">🗑️</button>
+                            </div>
+                            <div class="arm64-execution-output" id="arm64ExecutionOutput">
+                                <!-- La salida aparecerá aquí -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <span id="statusMessage">Listo</span>
+        </div>
+        <div class="status-right">
+            <span id="executionTime"></span>
+            <span>VLan Cherry</span>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<!-- D3.js para visualización de AST -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<!-- SheetJS para exportar Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/api.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/file-manager.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/ide.js"></script>
+<script src="js/arm64-highlighter.js"></script>
+</body>
+</html>
