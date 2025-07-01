@@ -1159,17 +1159,16 @@ func (t *ARM64Translator) translateBinaryExpression(ctx *compiler.BinaryExprCont
 		return
 	}
 
-	// 🔧 NUEVO: DETECTAR CONCATENACIÓN DE STRINGS
+	// DETECTAR CONCATENACIÓN DE STRINGS
 	leftIsString := t.isStringExpression(ctx.GetLeft())
 	rightIsString := t.isStringExpression(ctx.GetRight())
 
 	if operator == "+" && (leftIsString || rightIsString) {
-		// MANEJAR CONCATENACIÓN DE STRINGS
 		t.translateStringConcatenation(ctx)
 		return
 	}
 
-	// Determinar si estamos comparando flotantes
+	// Determinar si estamos operando con flotantes
 	leftIsFloat := t.isFloatExpression(ctx.GetLeft())
 	rightIsFloat := t.isFloatExpression(ctx.GetRight())
 
@@ -1181,15 +1180,15 @@ func (t *ARM64Translator) translateBinaryExpression(ctx *compiler.BinaryExprCont
 	// Evaluar operando derecho (queda en X0)
 	t.translateExpression(ctx.GetRight())
 
-	// Si uno de los operandos es flotante, escalar el entero
+	// CLAVE: Solo escalar si es operación mixta (int + float)
 	if leftIsFloat && !rightIsFloat {
-		// Escalar operando derecho
-		t.generator.Comment("Escalar operando derecho para comparación con flotante")
+		// Escalar operando derecho (entero)
+		t.generator.Comment("Escalar operando derecho (entero) para operación con flotante")
 		t.generator.Emit("mov x2, #100")
 		t.generator.Mul(arm64.X0, arm64.X0, "x2")
 	} else if !leftIsFloat && rightIsFloat {
-		// Escalar operando izquierdo
-		t.generator.Comment("Escalar operando izquierdo para comparación con flotante")
+		// Escalar operando izquierdo (entero)
+		t.generator.Comment("Escalar operando izquierdo (entero) para operación con flotante")
 		t.generator.Emit("mov x2, #100")
 		t.generator.Mul(arm64.X1, arm64.X1, "x2")
 	}
@@ -1202,14 +1201,43 @@ func (t *ARM64Translator) translateBinaryExpression(ctx *compiler.BinaryExprCont
 		t.generator.Sub(arm64.X0, arm64.X1, arm64.X0)
 	case "*":
 		t.generator.Mul(arm64.X0, arm64.X1, arm64.X0)
+		// Solo compensar si ambos son flotantes (doble escalado)
+		if leftIsFloat && rightIsFloat {
+			t.generator.Comment("Compensar doble escalado en multiplicación de flotantes")
+			t.generator.Emit("mov x2, #100")
+			t.generator.Div(arm64.X0, arm64.X0, "x2")
+		}
 	case "/":
 		t.generator.Div(arm64.X0, arm64.X1, arm64.X0)
+		// Re-escalar solo si ambos son flotantes
+		if leftIsFloat && rightIsFloat {
+			t.generator.Comment("Re-escalar resultado de división de flotantes")
+			t.generator.Emit("mov x2, #100")
+			t.generator.Mul(arm64.X0, arm64.X0, "x2")
+		}
 	case "%":
 		t.generator.Mod(arm64.X0, arm64.X1, arm64.X0)
 	case "==":
-		t.translateComparison(arm64.X1, arm64.X0, "eq")
+		if leftIsString || rightIsString {
+			t.generator.Comment("Comparación de strings con strcmp")
+			t.generator.Emit("mov x19, x1") // guardar primer string
+			t.generator.Emit("mov x1, x0")  // segundo string en x1
+			t.generator.Emit("mov x0, x19") // primer string en x0
+			t.generator.CallFunction("strcmp")
+		} else {
+			t.translateComparison(arm64.X1, arm64.X0, "eq")
+		}
 	case "!=":
-		t.translateComparison(arm64.X1, arm64.X0, "ne")
+		if leftIsString || rightIsString {
+			t.generator.Comment("Comparación de strings != con strcmp")
+			t.generator.Emit("mov x19, x1") // guardar operando izquierdo
+			t.generator.Emit("mov x1, x0")  // operando derecho en x1
+			t.generator.Emit("mov x0, x19") // operando izquierdo en x0
+			t.generator.CallFunction("strcmp")
+			t.generator.Emit("eor x0, x0, #1") // negar resultado
+		} else {
+			t.translateComparison(arm64.X1, arm64.X0, "ne")
+		}
 	case "<":
 		t.translateComparison(arm64.X1, arm64.X0, "lt")
 	case ">":
@@ -1224,31 +1252,40 @@ func (t *ARM64Translator) translateBinaryExpression(ctx *compiler.BinaryExprCont
 }
 
 func (t *ARM64Translator) translateStringConcatenation(ctx *compiler.BinaryExprContext) {
-	t.generator.Comment("=== CONCATENACIÓN DE STRINGS (VERSIÓN CORREGIDA) ===")
+	t.generator.Comment("=== CONCATENACIÓN DE STRINGS ===")
 
-	// Para simplificar, crear un nuevo string literal que combine ambos
+	// Verificar si ambos operandos son literales
 	leftText := t.getStringLiteralText(ctx.GetLeft())
 	rightText := t.getStringLiteralText(ctx.GetRight())
 
 	if leftText != "" && rightText != "" {
-		// Si ambos son literales, crear concatenación directa
+		// CASO 1: Ambos son literales - concatenación en tiempo de compilación
 		concatenatedText := leftText + rightText
 
-		// Verificar si ya existe en el registro
 		if existingLabel, exists := t.stringRegistry[concatenatedText]; exists {
 			t.generator.Comment(fmt.Sprintf("Usar string concatenado existente: \"%s\"", concatenatedText))
 			t.generator.Emit(fmt.Sprintf("adr x0, %s", existingLabel))
 		} else {
-			// Crear nuevo string literal concatenado
 			stringLabel := t.generator.AddStringLiteral(concatenatedText)
 			t.stringRegistry[concatenatedText] = stringLabel
 			t.generator.Comment(fmt.Sprintf("Crear nuevo string concatenado: \"%s\"", concatenatedText))
 			t.generator.Emit(fmt.Sprintf("adr x0, %s", stringLabel))
 		}
 	} else {
-		// Fallback: usar solo el segundo string
-		t.generator.Comment("ADVERTENCIA: Concatenación no literal, usando segundo operando")
+		// CASO 2: Al menos uno es variable - usar concat_strings
+		t.generator.Comment("Preparar argumentos para concatenación")
+
+		// Evaluar primer string y guardarlo en x19
+		t.translateExpression(ctx.GetLeft())
+		t.generator.Emit("mov x19, x0")
+
+		// Evaluar segundo string y mantenerlo en x0
 		t.translateExpression(ctx.GetRight())
+		t.generator.Emit("mov x1, x0")
+		t.generator.Emit("mov x0, x19")
+
+		// Llamar función de concatenación
+		t.generator.CallFunction("concat_strings")
 	}
 }
 
@@ -2412,6 +2449,93 @@ func (t *ARM64Translator) generateStandardLibrary() {
 
 	t.generator.Emit("ldp x29, x30, [sp], #16")
 	t.generator.Emit("ret")
+
+	// Concatena Strings
+
+	t.generator.EmitRaw("")
+	t.generator.EmitRaw("concat_strings:")
+	t.generator.Emit("// Función para concatenar dos strings")
+	t.generator.Emit("// Input: x0 = primer string, x1 = segundo string")
+	t.generator.Emit("// Output: x0 = dirección del string concatenado")
+	t.generator.Emit("stp x29, x30, [sp, #-16]!")
+	t.generator.Emit("stp x19, x20, [sp, #-16]!")
+	t.generator.Emit("stp x21, x22, [sp, #-16]!")
+	t.generator.Emit("stp x23, x24, [sp, #-16]!")
+
+	// Reservar espacio para el buffer en el stack
+	t.generator.Emit("sub sp, sp, #128")
+	t.generator.Emit("mov x19, x0") // primer string
+	t.generator.Emit("mov x20, x1") // segundo string
+	t.generator.Emit("mov x21, sp") // usar stack como buffer
+	t.generator.Emit("mov x22, #0") // contador de posición
+
+	// Copiar primer string
+	t.generator.EmitRaw("copy_first_loop:")
+	t.generator.Emit("ldrb w23, [x19, x22]")
+	t.generator.Emit("cbz w23, copy_first_done")
+	t.generator.Emit("strb w23, [x21, x22]")
+	t.generator.Emit("add x22, x22, #1")
+	t.generator.Emit("cmp x22, #60")
+	t.generator.Emit("bge copy_first_done")
+	t.generator.Emit("b copy_first_loop")
+
+	t.generator.EmitRaw("copy_first_done:")
+	t.generator.Emit("mov x23, #0")
+
+	// Copiar segundo string
+	t.generator.EmitRaw("copy_second_loop:")
+	t.generator.Emit("ldrb w24, [x20, x23]")
+	t.generator.Emit("cbz w24, copy_second_done")
+	t.generator.Emit("strb w24, [x21, x22]")
+	t.generator.Emit("add x22, x22, #1")
+	t.generator.Emit("add x23, x23, #1")
+	t.generator.Emit("cmp x22, #120")
+	t.generator.Emit("bge copy_second_done")
+	t.generator.Emit("b copy_second_loop")
+
+	t.generator.EmitRaw("copy_second_done:")
+	t.generator.Emit("strb wzr, [x21, x22]")
+	t.generator.Emit("mov x0, x21")
+
+	// CORRECCIÓN: Restaurar stack y registros correctamente
+	t.generator.Emit("add sp, sp, #128")        // Liberar buffer
+	t.generator.Emit("ldp x23, x24, [sp], #16") // Restaurar registros
+	t.generator.Emit("ldp x21, x22, [sp], #16")
+	t.generator.Emit("ldp x19, x20, [sp], #16")
+	t.generator.Emit("ldp x29, x30, [sp], #16")
+	t.generator.Emit("ret")
+
+	// FUNCIÓN strcmp
+	t.generator.EmitRaw("")
+	t.generator.EmitRaw("strcmp:")
+	t.generator.Emit("// Comparar strings por contenido")
+	t.generator.Emit("// Input: x0 = primer string, x1 = segundo string")
+	t.generator.Emit("// Output: x0 = 1 si iguales, 0 si diferentes")
+	t.generator.Emit("stp x29, x30, [sp, #-16]!")
+	t.generator.Emit("mov x19, x0") // primer string
+	t.generator.Emit("mov x20, x1") // segundo string
+	t.generator.Emit("mov x21, #0") // índice
+
+	t.generator.EmitRaw("strcmp_loop:")
+	t.generator.Emit("ldrb w0, [x19, x21]")  // cargar byte del primer string
+	t.generator.Emit("ldrb w1, [x20, x21]")  // cargar byte del segundo string
+	t.generator.Emit("cmp w0, w1")           // comparar bytes
+	t.generator.Emit("bne strcmp_different") // si diferentes, retornar 0
+	t.generator.Emit("cbz w0, strcmp_equal") // si llegamos a \0, son iguales
+	t.generator.Emit("add x21, x21, #1")     // siguiente byte
+	t.generator.Emit("b strcmp_loop")
+
+	t.generator.EmitRaw("strcmp_different:")
+	t.generator.Emit("mov x0, #0") // retornar 0
+	t.generator.Emit("b strcmp_done")
+
+	t.generator.EmitRaw("strcmp_equal:")
+	t.generator.Emit("mov x0, #1") // retornar 1
+
+	t.generator.EmitRaw("strcmp_done:")
+	t.generator.Emit("ldp x29, x30, [sp], #16")
+	t.generator.Emit("ret")
+
 }
 
 // === UTILIDADES ===

@@ -111,6 +111,39 @@ fn main() {
     println("texto:", texto)
     println("booleano:", booleano)
 
+    if (entero == 100 && decimal == 19.80 && texto == "Nuevo!" && booleano == true) {
+        puntosAsignacion = puntosAsignacion + 1
+        print("OK Asignación con expresiones: correcto")
+    } else {
+        print("X Asignación con expresiones: incorrecto")
+    }
+
+    println("Asignación con tipo incorrecto")
+    puntosAsignacion = puntosAsignacion + 1
+    println("OK Asignación con tipo incorrecto: correcto")
+
+    // 3. Operaciones Aritméticas (3 puntos)
+    println("==== Operaciones Aritméticas ====")
+    mut puntosOperacionesAritmeticas int = 0
+
+    println("Suma")
+    mut resultadoSuma1 int = 10 + 5
+    mut resultadoSuma2 float = 10.5 + 5.5
+    mut resultadoSuma3 float = 10 + 5.5
+    mut resultadoSuma4 float  = 10.5 + 5
+
+    println("10 + 5 =", resultadoSuma1)
+    println("10.5 + 5.5 =", resultadoSuma2)
+    println("10 + 5.5 =", resultadoSuma3)
+    println("10.5 + 5 =", resultadoSuma4)
+
+    if (resultadoSuma1 == 15 && resultadoSuma2 == 16.0 && resultadoSuma3 == 15.5 && resultadoSuma4 == 15.5) {
+        puntosOperacionesAritmeticas = puntosOperacionesAritmeticas + 1;
+        print("OK Suma: correcto");
+    } else {
+        print("X Suma: incorrecto");
+    }
+
 
 }
 
